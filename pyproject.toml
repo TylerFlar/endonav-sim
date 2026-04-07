@@ -1,0 +1,54 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "endonav-sim"
+version = "0.1.0"
+description = "Procedural endoscopic simulator of a kidney collecting system with physically accurate coaxial lighting."
+readme = "README.md"
+requires-python = ">=3.10,<3.13"
+authors = [{ name = "TylerFlar" }]
+license = { file = "LICENSE" }
+dependencies = [
+    "numpy>=1.24",
+    "scipy>=1.10",
+    "trimesh[easy]>=4.0",
+    "scikit-image>=0.22",
+    "matplotlib>=3.7",
+    "imageio[ffmpeg]>=2.31",
+    "moderngl>=5.10",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=7", "ruff>=0.4"]
+
+[tool.setuptools.packages.find]
+include = ["endonav_sim*", "scripts*"]
+
+[tool.setuptools.package-data]
+"endonav_sim" = ["shader/*.vert", "shader/*.frag"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle errors
+    "F",   # pyflakes
+    "W",   # pycodestyle warnings
+    "I",   # isort
+    "B",   # bugbear
+    "UP",  # pyupgrade
+    "C4",  # comprehensions
+    "SIM", # simplify
+]
+ignore = [
+    "E501",  # line too long (handled by formatter)
+    "B008",  # function-call default args (we use this for numpy defaults)
+]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"

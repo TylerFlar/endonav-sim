@@ -1,0 +1,43 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+dist/
+*.egg-info/
+*.egg
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# uv
+# uv.lock IS tracked
+
+# Generated validation artifacts at repo root (regenerate via scripts/)
+/grid.png
+/junction_detection.png
+/brightness_falloff.png
+/skeleton_overlay.png
+/flythrough.mp4
+
+# One-off / scratch render outputs
+test_*.png
+debug_*.png
+phantom_*.png
+*.tmp.png
+
+# OS / editors
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Logs
+*.log
