@@ -11,7 +11,7 @@ from pathlib import Path
 import imageio.v3 as iio
 import numpy as np
 
-from endonav_sim.simulator import KidneySimulator
+from endonav_sim.sim.simulator import KidneySimulator
 
 OUT = Path("validation_kinematics.png")
 

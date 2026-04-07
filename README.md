@@ -11,6 +11,7 @@ A procedural endoscopic simulator of a kidney collecting system, built as a test
 - **EndoPBR-style lighting.** Coaxial point light at the camera, EndoPBR spotlight emission `cos^n(θ)/r²`, GGX/Cook-Torrance specular collapsed for the L=V case, wrap-around diffuse with warm SSS bleed for skin-like terminator softening, ACES filmic tonemap. References: [EndoPBR](https://arxiv.org/abs/2502.20669) (arXiv 2502.20669, 2025), [NVIDIA GPU Gems Ch 16](https://developer.nvidia.com/gpugems/gpugems/part-iii-materials/chapter-16-real-time-approximations-subsurface-scattering), Dey et al. MICCAI 2005.
 - **Phantom-camera matched optics.** 1024×768 output at 4:3, with 870×760 active region letterboxed by black bars. 2× supersample AA, mild radial chromatic aberration, blocky h264-style sensor noise.
 - **Ureteroscope kinematics.** `KidneySimulator` models a flexible ureteroscope (ROEN Surgical Zamenix R style) with 3 real DOFs: `advance` along the shaft, `roll` (incremental axial shaft rotation), and `deflection` (absolute single-plane tip bending). The shaft passively conforms to the lumen centerline; aiming is polar — roll picks the bending direction, deflection picks the bending amount. Rolling the shaft also rotates the rendered camera image, just like a real scope. Exposes `reset / render / command(advance_mm, roll_deg, deflection_deg) / follow_skeleton / get_skeleton`. `render()` returns RGB + metric depth + clearance + current tree node + progress. SDF-based collision detection prevents the camera from intruding on the wall.
+- **Perception stack (RGB-only).** A separate `endonav_sim.perception` subpackage turns rendered frames into the signals an autonomy controller needs, with no access to depth/pose ground truth: `JunctionDetector` (adaptive dark-blob detection inside a circular aperture, classifies frames as junction/lumen/dead_end with temporal confirmation, returns blob centroids in roll-corrected polar coords), `PlaceRecognition` (DINOv2 ViT-S/14 + online VLAD with 32-cluster vocab, HSV-histogram fallback if torch is unavailable, de-rotates by cumulative roll before extraction so descriptors are roll-invariant), and `ProximityDetector` (3×3 brightness grid + Farneback optical-flow expansion for safety reflexes).
 
 ## Example renders
 
@@ -42,6 +43,37 @@ A simple dark-blob counter (placeholder for the real junction detector) at the t
 - Upper major: ≥3 dark openings (the three minor infundibula) ✓
 - Lower major: ≥3 dark openings ✓
 
+### Perception stack validation
+
+`scripts/validate_perception.py` exercises the full RGB-only perception subpackage end-to-end against the simulator and writes six PNGs to the repo root. With the `perception-dl` extra installed (DINOv2 backend) the latest run reports:
+
+```
+junctions+deadend      PASS   pelvis=2 blobs, major_upper=3 blobs, calyx=dead_end
+place_recognition      PASS   diag=1.000  off=-0.048  sep=1.048   (DINOv2 + VLAD)
+blob_polar             PASS   ground-truth angular errors 4.9°, 1.9°
+roll_invariance        PASS   min cosine sim = 0.966 across 0/90/180/270°
+```
+
+| Pelvis bifurcation (2 blobs) | Upper-major trifurcation (3 blobs) | Minor calyx dead end (0 blobs) |
+|---|---|---|
+| ![pelvis](docs/images/validate_perception_pelvis.png) | ![major](docs/images/validate_perception_major.png) | ![deadend](docs/images/validate_perception_deadend.png) |
+
+Detected dark-blob contours are outlined in green, centroids in red, and the polar steering vectors from frame center are drawn in yellow.
+
+| Blob polar coords vs ground truth | DINOv2+VLAD place-recognition confusion matrix |
+|---|---|
+| ![polar](docs/images/validate_perception_polar.png) | ![pr confusion](docs/images/validate_perception_pr_confusion.png) |
+
+Left: at the pelvis bifurcation, detected blob centroids (red arrows) are compared against ground-truth branch directions (green arrows) recovered by projecting the first waypoint of each major calyx into the camera frame. The angular errors of 4.9° and 1.9° are well below the 20° threshold the steering controller will need.
+
+Right: pairwise cosine similarity of DINOv2+VLAD descriptors across all 15 named locations. The diagonal is saturated, the off-diagonal mean is essentially zero (–0.048) — every anatomical location is mapped to a nearly orthogonal descriptor.
+
+![roll invariance](docs/images/validate_perception_roll_invariance.png)
+
+Roll invariance test: same anatomical viewpoint rendered at 0°/90°/180°/270° of cumulative shaft roll. Place recognition de-rotates the frame by `cumulative_roll` and crops to a centered square inscribed in the rotation circle, so the same disc of pixels is sampled at every angle. The four descriptors remain >0.96 cosine similar.
+
+The HSV histogram fallback (no torch) still passes all tests but with much weaker place-recognition separation (~0.13). With DINOv2 the off-diagonal mean is essentially zero — different anatomical locations produce nearly orthogonal descriptors.
+
 ## Install
 
 Requires Python 3.10–3.12. Uses [uv](https://docs.astral.sh/uv/) for environment management.
@@ -49,14 +81,15 @@ Requires Python 3.10–3.12. Uses [uv](https://docs.astral.sh/uv/) for environme
 ```bash
 git clone <this-repo> endonav-sim
 cd endonav-sim
-uv sync               # production deps
-uv sync --extra dev   # + ruff, pytest
+uv sync                          # production deps (numpy, opencv, moderngl, ...)
+uv sync --extra dev              # + ruff, pytest
+uv sync --extra perception-dl    # + torch + torchvision for DINOv2 place recognition
 ```
 
 ## Quickstart
 
 ```python
-from endonav_sim.simulator import KidneySimulator
+from endonav_sim import KidneySimulator
 
 sim = KidneySimulator()                # builds anatomy, mesh, renderer
 sim.reset()                             # camera at ureter entry
@@ -76,6 +109,7 @@ uv run python -m scripts.validate_junction_detector  # dark-blob detection at al
 uv run python -m scripts.validate_brightness_falloff # 1/r² falloff plot
 uv run python -m scripts.validate_flythrough         # MP4 fly-through of the entire DFS
 uv run python -m scripts.visualize_skeleton          # 3D skeleton + mesh point cloud
+uv run python -m scripts.validate_perception         # full perception stack (6 tests, 6 PNGs)
 ```
 
 Outputs are written to the repo root (and gitignored).
@@ -84,22 +118,29 @@ Outputs are written to the repo root (and gitignored).
 
 ```
 endonav_sim/
-  tree.py            Sampaio Type A1 anatomy as a dict of segments
-  skeleton.py        Walks the tree, builds per-node 1mm-spaced waypoints with tangents
-  mesh_gen.py        Implicit swept-sphere field, smooth-min/max, marching cubes
-  texture.py         Value-noise displacement, vertex coloring, cribriform, plaque
-  collision.py       SDF clearance check (mesh.contains + closest_point)
-  renderer.py        moderngl renderer, SSAA, two-pass coaxial + endoscope post
-  simulator.py       Public KidneySimulator API
-  shader/
-    coaxial.{vert,frag}     EndoPBR-style coaxial BRDF
-    postprocess.{vert,frag} Letterbox + chroma + h264-style noise resolve
+  sim/                            Procedural anatomy + rendering pipeline
+    tree.py            Sampaio Type A1 anatomy as a dict of segments
+    skeleton.py        Walks the tree, builds per-node 1mm-spaced waypoints with tangents
+    mesh_gen.py        Implicit swept-sphere field, smooth-min/max, marching cubes
+    texture.py         Value-noise displacement, vertex coloring, cribriform, plaque
+    collision.py       SDF clearance check (mesh.contains + closest_point)
+    renderer.py        moderngl renderer, SSAA, two-pass coaxial + endoscope post
+    simulator.py       Public KidneySimulator API
+    shader/
+      coaxial.{vert,frag}     EndoPBR-style coaxial BRDF
+      postprocess.{vert,frag} Letterbox + chroma + h264-style noise resolve
+  perception/                     RGB-only perception for autonomous navigation
+    junction.py        Adaptive dark-blob detector → junction/lumen/dead_end + polar targets
+    place_recognition.py  DINOv2 ViT-S/14 + VLAD (HSV histogram fallback), roll-invariant
+    proximity.py       3×3 brightness grid + Farneback optical-flow safety reflex
 scripts/
   validate_grid.py
+  validate_kinematics.py
   validate_junction_detector.py
   validate_brightness_falloff.py
   validate_flythrough.py
   visualize_skeleton.py
+  validate_perception.py
 docs/images/         README assets
 ```
 

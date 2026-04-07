@@ -7,8 +7,8 @@ from pathlib import Path
 
 import imageio.v2 as imageio
 
-from endonav_sim.simulator import KidneySimulator
-from endonav_sim.tree import dfs_order
+from endonav_sim.sim.simulator import KidneySimulator
+from endonav_sim.sim.tree import dfs_order
 
 OUT = Path("flythrough.mp4")
 FPS = 24

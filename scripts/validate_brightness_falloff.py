@@ -9,7 +9,7 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 import numpy as np
 
-from endonav_sim.simulator import KidneySimulator, _pose_from_forward
+from endonav_sim.sim.simulator import KidneySimulator, _pose_from_forward
 
 OUT = Path("brightness_falloff.png")
 DISTANCES_MM = [1.0, 2.0, 3.0, 5.0, 8.0, 12.0, 18.0, 25.0]

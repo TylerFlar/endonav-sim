@@ -27,6 +27,7 @@ env/
 /skeleton_overlay.png
 /flythrough.mp4
 /validation_kinematics.png
+/validate_perception_*.png
 
 # One-off / scratch render outputs
 test_*.png

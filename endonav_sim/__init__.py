@@ -1,3 +1,6 @@
 """endonav_sim: procedural endoscopic kidney collecting system simulator."""
 
-__version__ = "0.1.0"
+from .sim import KidneySimulator
+
+__version__ = "0.3.0"
+__all__ = ["KidneySimulator"]

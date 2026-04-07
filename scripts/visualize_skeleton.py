@@ -7,9 +7,9 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 import numpy as np
 
-from endonav_sim.mesh_gen import build_mesh
-from endonav_sim.skeleton import build_skeleton
-from endonav_sim.tree import dfs_order
+from endonav_sim.sim.mesh_gen import build_mesh
+from endonav_sim.sim.skeleton import build_skeleton
+from endonav_sim.sim.tree import dfs_order
 
 OUT = Path("skeleton_overlay.png")
 

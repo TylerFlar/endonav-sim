@@ -15,7 +15,7 @@ import imageio.v3 as iio
 import numpy as np
 from scipy import ndimage
 
-from endonav_sim.simulator import KidneySimulator
+from endonav_sim.sim.simulator import KidneySimulator
 
 OUT = Path("junction_detection.png")
 DARK_THRESHOLD = 20
