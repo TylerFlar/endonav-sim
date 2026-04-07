@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "endonav-sim"
-version = "0.1.0"
+version = "0.2.0"
 description = "Procedural endoscopic simulator of a kidney collecting system with physically accurate coaxial lighting."
 readme = "README.md"
 requires-python = ">=3.10,<3.13"

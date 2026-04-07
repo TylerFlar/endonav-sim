@@ -26,6 +26,7 @@ env/
 /brightness_falloff.png
 /skeleton_overlay.png
 /flythrough.mp4
+/validation_kinematics.png
 
 # One-off / scratch render outputs
 test_*.png

@@ -10,7 +10,7 @@ A procedural endoscopic simulator of a kidney collecting system, built as a test
 - **Mucosal detail.** Vertex displacement (3D value noise) creates the bumpy mucosal folds; per-vertex color noise creates vascular streaks; cribriform dark dots on the papillae and sparse Randall's plaque white speckles add the diagnostically distinctive features urologists look for.
 - **EndoPBR-style lighting.** Coaxial point light at the camera, EndoPBR spotlight emission `cos^n(θ)/r²`, GGX/Cook-Torrance specular collapsed for the L=V case, wrap-around diffuse with warm SSS bleed for skin-like terminator softening, ACES filmic tonemap. References: [EndoPBR](https://arxiv.org/abs/2502.20669) (arXiv 2502.20669, 2025), [NVIDIA GPU Gems Ch 16](https://developer.nvidia.com/gpugems/gpugems/part-iii-materials/chapter-16-real-time-approximations-subsurface-scattering), Dey et al. MICCAI 2005.
 - **Phantom-camera matched optics.** 1024×768 output at 4:3, with 870×760 active region letterboxed by black bars. 2× supersample AA, mild radial chromatic aberration, blocky h264-style sensor noise.
-- **Closed-loop API.** `KidneySimulator` exposes `reset / render / command(advance, yaw, pitch) / follow_skeleton / get_skeleton`. `render()` returns RGB + metric depth + clearance + current tree node + progress. SDF-based collision detection prevents the camera from intruding on the wall.
+- **Ureteroscope kinematics.** `KidneySimulator` models a flexible ureteroscope (ROEN Surgical Zamenix R style) with 3 real DOFs: `advance` along the shaft, `roll` (incremental axial shaft rotation), and `deflection` (absolute single-plane tip bending). The shaft passively conforms to the lumen centerline; aiming is polar — roll picks the bending direction, deflection picks the bending amount. Rolling the shaft also rotates the rendered camera image, just like a real scope. Exposes `reset / render / command(advance_mm, roll_deg, deflection_deg) / follow_skeleton / get_skeleton`. `render()` returns RGB + metric depth + clearance + current tree node + progress. SDF-based collision detection prevents the camera from intruding on the wall.
 
 ## Example renders
 
@@ -61,7 +61,9 @@ from endonav_sim.simulator import KidneySimulator
 sim = KidneySimulator()                # builds anatomy, mesh, renderer
 sim.reset()                             # camera at ureter entry
 out = sim.render()                      # dict: rgb, depth, pose, nearest_wall_mm, current_tree_node, current_tree_progress
-sim.command(advance_mm=2.0, yaw_deg=0, pitch_deg=0)   # returns False if collision
+sim.command(advance_mm=2.0)                            # push the scope 2 mm deeper
+sim.command(roll_deg=90.0, deflection_deg=30.0)        # roll 90°, then deflect tip 30°
+# returns False (and reverts state) if the new tip pose collides with the wall
 sim.follow_skeleton("calyx_u1", 0.5)    # teleport to a skeleton waypoint
 ```
 
@@ -69,6 +71,7 @@ sim.follow_skeleton("calyx_u1", 0.5)    # teleport to a skeleton waypoint
 
 ```bash
 uv run python -m scripts.validate_grid               # 3x3 anatomical viewpoint grid
+uv run python -m scripts.validate_kinematics         # 3x4 roll/deflection grid + invariants
 uv run python -m scripts.validate_junction_detector  # dark-blob detection at all bifurcations
 uv run python -m scripts.validate_brightness_falloff # 1/r² falloff plot
 uv run python -m scripts.validate_flythrough         # MP4 fly-through of the entire DFS
