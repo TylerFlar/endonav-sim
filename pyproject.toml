@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "endonav-sim"
-version = "0.3.0"
-description = "Procedural endoscopic simulator of a kidney collecting system with physically accurate coaxial lighting."
+version = "0.5.0"
+description = "Procedural seeded simulator of robotic ureteroscopy: kidney anatomy, kidney stones, realistic scope dynamics, and a 60+ fps RGB+depth interface."
 readme = "README.md"
 requires-python = ">=3.10,<3.13"
 authors = [{ name = "TylerFlar" }]
@@ -23,16 +23,12 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = ["pytest>=7", "ruff>=0.4"]
-perception-dl = [
-    "torch>=2.1",
-    "torchvision>=0.16",
-]
 
 [tool.setuptools.packages.find]
 include = ["endonav_sim*", "scripts*"]
 
 [tool.setuptools.package-data]
-"endonav_sim.sim" = ["shader/*.vert", "shader/*.frag"]
+"endonav_sim" = ["shader/*.vert", "shader/*.frag"]
 
 [tool.ruff]
 line-length = 100

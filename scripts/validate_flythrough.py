@@ -1,4 +1,4 @@
-"""Render a fly-through video that walks the skeleton through every node."""
+"""Render a fly-through video that walks the procedural skeleton in DFS order."""
 
 from __future__ import annotations
 
@@ -7,19 +7,20 @@ from pathlib import Path
 
 import imageio.v2 as imageio
 
-from endonav_sim.sim.simulator import KidneySimulator
-from endonav_sim.sim.tree import dfs_order
+from endonav_sim import AnatomyParams, KidneySimulator
+from endonav_sim.skeleton import dfs_order
 
-OUT = Path("flythrough.mp4")
+OUT = Path("artifacts/flythrough.mp4")
 FPS = 24
 STEPS_PER_NODE = 30
 
 
 def main() -> None:
-    sim = KidneySimulator()
-    order = dfs_order()
+    sim = KidneySimulator(anatomy_params=AnatomyParams(seed=0), realistic=False)
+    order = dfs_order(sim.tree)
     print("DFS order:", order)
 
+    OUT.parent.mkdir(parents=True, exist_ok=True)
     writer = imageio.get_writer(OUT, fps=FPS, codec="libx264", quality=7)
     t0 = time.time()
     n_frames = 0

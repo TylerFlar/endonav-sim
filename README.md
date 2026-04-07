@@ -1,78 +1,86 @@
 # endonav-sim
 
-A procedural endoscopic simulator of a kidney collecting system, built as a testbed for autonomous ureteroscope navigation algorithms (junction detection, place recognition, DFS exploration). No CT scan required — the entire pelvicalyceal anatomy is generated procedurally and rendered with a coaxial lighting model derived from published endoscopic-rendering literature.
+A procedural seeded simulator of robotic ureteroscopy. Every kidney is a unique, anatomically-grounded pelvicalyceal tree, populated with realistic kidney stones, viewed through a flexible ureteroscope with honest robotic dynamics — encoder noise, tendon-sheath hysteresis, buckling, dead-reckoning drift. Built for closed-loop autonomy research where you need to evaluate a controller against many anatomies, not one canonical phantom. Runs at 60+ fps.
 
-![hero — looking from the upper major calyx into its three minor infundibula](docs/images/hero_major_upper.png)
+![procedural kidneys preview](docs/images/procedural_kidneys.png)
 
-## What it does
+*Four kidneys generated from seeds 0–3. Each one has a different number of upper / lower pole calyces, a different lower-pole infundibulopelvic angle (clinically critical for stone access), and a different stone configuration. Nothing is hard-coded — the numbers come from sampling distributions calibrated to the published anatomy literature.*
 
-- **Procedural anatomy.** A 19-node Sampaio Type A1 pelvicalyceal tree (S-curved ureter with three physiologic narrowings → broad renal pelvis → 2 major calyces → 6 minor calyces, each terminating in a papilla) is generated from a tree dictionary, swept with sphere SDFs, blended via smooth-min, carved with papilla domes via smooth-max, and meshed with marching cubes into a single watertight inner-wall mesh.
-- **Mucosal detail.** Vertex displacement (3D value noise) creates the bumpy mucosal folds; per-vertex color noise creates vascular streaks; cribriform dark dots on the papillae and sparse Randall's plaque white speckles add the diagnostically distinctive features urologists look for.
-- **EndoPBR-style lighting.** Coaxial point light at the camera, EndoPBR spotlight emission `cos^n(θ)/r²`, GGX/Cook-Torrance specular collapsed for the L=V case, wrap-around diffuse with warm SSS bleed for skin-like terminator softening, ACES filmic tonemap. References: [EndoPBR](https://arxiv.org/abs/2502.20669) (arXiv 2502.20669, 2025), [NVIDIA GPU Gems Ch 16](https://developer.nvidia.com/gpugems/gpugems/part-iii-materials/chapter-16-real-time-approximations-subsurface-scattering), Dey et al. MICCAI 2005.
-- **Phantom-camera matched optics.** 1024×768 output at 4:3, with 870×760 active region letterboxed by black bars. 2× supersample AA, mild radial chromatic aberration, blocky h264-style sensor noise.
-- **Ureteroscope kinematics.** `KidneySimulator` models a flexible ureteroscope (ROEN Surgical Zamenix R style) with 3 real DOFs: `advance` along the shaft, `roll` (incremental axial shaft rotation), and `deflection` (absolute single-plane tip bending). The shaft passively conforms to the lumen centerline; aiming is polar — roll picks the bending direction, deflection picks the bending amount. Rolling the shaft also rotates the rendered camera image, just like a real scope. Exposes `reset / render / command(advance_mm, roll_deg, deflection_deg) / follow_skeleton / get_skeleton`. `render()` returns RGB + metric depth + clearance + current tree node + progress. SDF-based collision detection prevents the camera from intruding on the wall.
-- **Perception stack (RGB-only).** A separate `endonav_sim.perception` subpackage turns rendered frames into the signals an autonomy controller needs, with no access to depth/pose ground truth: `JunctionDetector` (adaptive dark-blob detection inside a circular aperture, classifies frames as junction/lumen/dead_end with temporal confirmation, returns blob centroids in roll-corrected polar coords), `PlaceRecognition` (DINOv2 ViT-S/14 + online VLAD with 32-cluster vocab, HSV-histogram fallback if torch is unavailable, de-rotates by cumulative roll before extraction so descriptors are roll-invariant), and `ProximityDetector` (3×3 brightness grid + Farneback optical-flow expansion for safety reflexes).
+## Features
 
-## Example renders
+- **Seeded procedural anatomy.** Sampaio Type A1 pelvicalyceal trees with sampled lengths, radii, branch counts and angles. Per-kidney variation in total minor-calyx count (7–13), lower-pole infundibula count (3–7), infundibular geometry, **infundibulopelvic angle** (low IPA = clinically hard-to-reach lower pole), and ureter narrowing radii (UVJ + UPJ).
+- **Kidney stones.** Composition rolled from global epidemiology (~80% calcium oxalate, 10% struvite, 9% uric acid, 1% cystine), sizes lognormal in 2–20 mm, location biased toward the gravity-dependent lower pole. Optional staghorn stones. Stones are carved into the wall mesh as proper geometry, painted with composition-specific colors, and queryable for capture.
+- **Realistic ureteroscope interface.** `KidneySimulator.command(advance_mm, roll_deg, deflection_deg)` runs through a `ScopeDynamics` layer that simulates encoder quantization, deflection dead-zone, **tendon-sheath backlash hysteresis**, multiplicative noise, **shaft buckling** when an advance is rejected by the wall, retraction slip, and a separately-integrated **dead-reckoned pose estimate**. Returns a `CommandFeedback` with everything a real robotic scope could plausibly report.
+- **Stone capture.** `attempt_capture(ToolMode.BASKET | ToolMode.LASER)` simulates the two real treatment modes. Basket grabs whole stones up to 3.5 mm; laser fragments stones up to 15 mm into 2–6 pieces that have to be cleaned up afterwards — the clinical *find → fragment → basket* loop.
+- **Coaxial endoscopic rendering.** EndoPBR-style coaxial point light, GGX/Cook–Torrance specular collapsed for L=V, wrap-around diffuse with warm SSS bleed, ACES filmic tonemap. Phantom-camera matched optics: 1024×768 at 4:3, 870×760 active region letterboxed, 2× SSAA, mild radial chromatic aberration, h264-style sensor noise. Mesh is procedurally displaced and painted with vascular streaks, Randall's plaque speckles, and cribriform dots.
+- **60+ fps.** Voxel-SDF collision queries, KD-tree-pruned mesh build, opt-in depth readback. Bench reports ~250 fps and ~5 ms per frame on a single procedural kidney with stones.
 
-| Inside the upper major calyx | Inside a minor calyx with papilla |
-|---|---|
-| ![upper major](docs/images/hero_major_upper.png) | ![calyx with papilla](docs/images/calyx_papilla.png) |
+## Quickstart
 
-| Down the iliac ureter | Anatomy validation grid (3×3 viewpoints) |
-|---|---|
-| ![ureter](docs/images/ureter.png) | ![validation grid](docs/images/grid.png) |
+```python
+from endonav_sim import (
+    AnatomyParams,
+    KidneySimulator,
+    StoneParams,
+    ToolMode,
+)
 
-The grid shows nine canonical viewpoints from the validation suite — distal/iliac/UPJ ureter, the pelvis bifurcation, both major calyces, and three minor calyces. Each tile is a real `KidneySimulator.render()` output at the phantom-camera resolution.
+sim = KidneySimulator(
+    anatomy_params=AnatomyParams(seed=42),  # fresh kidney
+    stone_params=StoneParams(seed=42),       # 1-8 stones with realistic distribution
+    seed=42,                                  # noise / dynamics RNG
+    realistic=True,                           # set False for clean kinematic mode
+)
 
-### Skeleton
-![skeleton overlay](docs/images/skeleton_overlay.png)
+print(f"{sim.anatomy_meta.n_dead_ends} calyces, "
+      f"IPA={sim.anatomy_meta.infundibulopelvic_angle_deg:.0f}°")
+print(f"{len(sim.stones)} stones")
 
-The 3D skeleton (one color per tree node) overlaid on a translucent point cloud of the wall mesh. Each calyx leaf has a small papilla blob carved into the back wall.
+sim.reset()
+out = sim.render(with_depth=False, with_stones_visible=False)
+# out["rgb"]                  : (H, W, 3) uint8 endoscope frame
+# out["pose"]                  : (4, 4) ground-truth camera-to-world (eval only)
+# out["nearest_wall_mm"]       : noisy proprioceptive clearance estimate
+# out["current_tree_node"]     : ground-truth segment id (eval only)
+# out["stones_visible"]        : ground-truth visible-stone list (eval only)
 
-### Brightness validation
-![brightness 1/r² falloff](docs/images/brightness_falloff.png)
+fb = sim.command(advance_mm=1.5, roll_deg=10.0, deflection_deg=25.0)
+# fb.actual_advance_mm / .actual_roll_deg / .actual_deflection_deg
+# fb.contact_force_norm  (0..1, derived from clearance)
+# fb.buckled             (True if the shaft bowed instead of moving)
+# fb.collided            (True if both the move and the buckle were blocked)
+# fb.wall_clearance_mm   (quantized + noisy proprioception)
+# fb.tip_pose_estimate   (dead-reckoned pose; drifts from ground truth)
 
-The central pixel patch over a flat-ish wall, sampled at distances 1–25 mm. The rendered curve (solid) tracks the analytic 1/r² reference (dashed) — confirming the inverse-square coaxial light is faithful and that brightness-based proximity perception modules will transfer sim→real.
+result = sim.attempt_capture(ToolMode.LASER)
+# result.success / .stone_id / .fragments_produced / .failure_reason
+```
 
-### Junction detection
-![junction detection](docs/images/junction_detection.png)
+## Validation grid
 
-A simple dark-blob counter (placeholder for the real junction detector) at the three anatomical bifurcation levels:
-- Pelvis: ≥2 dark openings (the two major calyces) ✓
-- Upper major: ≥3 dark openings (the three minor infundibula) ✓
-- Lower major: ≥3 dark openings ✓
+![grid of 9 anatomical viewpoints](docs/images/grid.png)
 
-### Perception stack validation
+`scripts/validate_grid.py` renders nine canonical viewpoints — distal/iliac/UPJ ureter, the pelvis bifurcation, both major calyces, and three minor calyces — at the phantom-camera resolution. Each tile is a real `KidneySimulator.render()` output.
 
-`scripts/validate_perception.py` exercises the full RGB-only perception subpackage end-to-end against the simulator and writes six PNGs to the repo root. With the `perception-dl` extra installed (DINOv2 backend) the latest run reports:
+## Skeleton with stones
+
+![skeleton overlay with stones](docs/images/skeleton_overlay.png)
+
+`scripts/visualize_skeleton.py --seed N --stones` plots the procedural skeleton in 3D (one color per anatomical region), overlaid on a translucent point cloud of the wall mesh, with stones drawn as composition-colored markers sized by radius.
+
+## Performance
+
+`scripts/bench_sim.py` is the regression gate. On a single procedural kidney (seed 2, 412k tris, 8 stones):
 
 ```
-junctions+deadend      PASS   pelvis=2 blobs, major_upper=3 blobs, calyx=dead_end
-place_recognition      PASS   diag=1.000  off=-0.048  sep=1.048   (DINOv2 + VLAD)
-blob_polar             PASS   ground-truth angular errors 4.9°, 1.9°
-roll_invariance        PASS   min cosine sim = 0.966 across 0/90/180/270°
+build:                    57 s          # one-time, mesh + SDF + colored displacement
+frame loop (200 frames):
+  command()      mean   0.23  p50   0.23  p99   0.33 ms
+  render()       mean   3.57  p50   3.51  p99   5.69 ms
+  total          mean   3.80  p50   3.73  p99   5.98 ms
+  fps:            263.1
+  60fps target:  PASS
 ```
-
-| Pelvis bifurcation (2 blobs) | Upper-major trifurcation (3 blobs) | Minor calyx dead end (0 blobs) |
-|---|---|---|
-| ![pelvis](docs/images/validate_perception_pelvis.png) | ![major](docs/images/validate_perception_major.png) | ![deadend](docs/images/validate_perception_deadend.png) |
-
-Detected dark-blob contours are outlined in green, centroids in red, and the polar steering vectors from frame center are drawn in yellow.
-
-| Blob polar coords vs ground truth | DINOv2+VLAD place-recognition confusion matrix |
-|---|---|
-| ![polar](docs/images/validate_perception_polar.png) | ![pr confusion](docs/images/validate_perception_pr_confusion.png) |
-
-Left: at the pelvis bifurcation, detected blob centroids (red arrows) are compared against ground-truth branch directions (green arrows) recovered by projecting the first waypoint of each major calyx into the camera frame. The angular errors of 4.9° and 1.9° are well below the 20° threshold the steering controller will need.
-
-Right: pairwise cosine similarity of DINOv2+VLAD descriptors across all 15 named locations. The diagonal is saturated, the off-diagonal mean is essentially zero (–0.048) — every anatomical location is mapped to a nearly orthogonal descriptor.
-
-![roll invariance](docs/images/validate_perception_roll_invariance.png)
-
-Roll invariance test: same anatomical viewpoint rendered at 0°/90°/180°/270° of cumulative shaft roll. Place recognition de-rotates the frame by `cumulative_roll` and crops to a centered square inscribed in the rotation circle, so the same disc of pixels is sampled at every angle. The four descriptors remain >0.96 cosine similar.
-
-The HSV histogram fallback (no torch) still passes all tests but with much weaker place-recognition separation (~0.13). With DINOv2 the off-diagonal mean is essentially zero — different anatomical locations produce nearly orthogonal descriptors.
 
 ## Install
 
@@ -81,67 +89,48 @@ Requires Python 3.10–3.12. Uses [uv](https://docs.astral.sh/uv/) for environme
 ```bash
 git clone <this-repo> endonav-sim
 cd endonav-sim
-uv sync                          # production deps (numpy, opencv, moderngl, ...)
+uv sync                          # production deps (numpy, scipy, opencv, moderngl, ...)
 uv sync --extra dev              # + ruff, pytest
-uv sync --extra perception-dl    # + torch + torchvision for DINOv2 place recognition
 ```
 
-## Quickstart
-
-```python
-from endonav_sim import KidneySimulator
-
-sim = KidneySimulator()                # builds anatomy, mesh, renderer
-sim.reset()                             # camera at ureter entry
-out = sim.render()                      # dict: rgb, depth, pose, nearest_wall_mm, current_tree_node, current_tree_progress
-sim.command(advance_mm=2.0)                            # push the scope 2 mm deeper
-sim.command(roll_deg=90.0, deflection_deg=30.0)        # roll 90°, then deflect tip 30°
-# returns False (and reverts state) if the new tip pose collides with the wall
-sim.follow_skeleton("calyx_u1", 0.5)    # teleport to a skeleton waypoint
-```
-
-## Validation scripts
+## Scripts
 
 ```bash
-uv run python -m scripts.validate_grid               # 3x3 anatomical viewpoint grid
-uv run python -m scripts.validate_kinematics         # 3x4 roll/deflection grid + invariants
-uv run python -m scripts.validate_junction_detector  # dark-blob detection at all bifurcations
-uv run python -m scripts.validate_brightness_falloff # 1/r² falloff plot
-uv run python -m scripts.validate_flythrough         # MP4 fly-through of the entire DFS
-uv run python -m scripts.visualize_skeleton          # 3D skeleton + mesh point cloud
-uv run python -m scripts.validate_perception         # full perception stack (6 tests, 6 PNGs)
+uv run python scripts/demo_procedural_sim.py    # 4 procedural kidneys -> artifacts/procedural_kidneys.png
+uv run python scripts/bench_sim.py --seed 2     # perf + accuracy regression
+uv run python scripts/visualize_skeleton.py     # 3D skeleton + stones overlay
+uv run python scripts/validate_grid.py          # 3x3 anatomical viewpoint grid
+uv run python scripts/validate_kinematics.py    # 3x4 roll/deflection grid + invariants
+uv run python scripts/validate_flythrough.py    # MP4 fly-through of the entire DFS
 ```
 
-Outputs are written to the repo root (and gitignored).
+All scripts write to `artifacts/` (gitignored). Committed reference images live in `docs/images/`.
 
 ## Layout
 
 ```
 endonav_sim/
-  sim/                            Procedural anatomy + rendering pipeline
-    tree.py            Sampaio Type A1 anatomy as a dict of segments
-    skeleton.py        Walks the tree, builds per-node 1mm-spaced waypoints with tangents
-    mesh_gen.py        Implicit swept-sphere field, smooth-min/max, marching cubes
-    texture.py         Value-noise displacement, vertex coloring, cribriform, plaque
-    collision.py       SDF clearance check (mesh.contains + closest_point)
-    renderer.py        moderngl renderer, SSAA, two-pass coaxial + endoscope post
-    simulator.py       Public KidneySimulator API
-    shader/
-      coaxial.{vert,frag}     EndoPBR-style coaxial BRDF
-      postprocess.{vert,frag} Letterbox + chroma + h264-style noise resolve
-  perception/                     RGB-only perception for autonomous navigation
-    junction.py        Adaptive dark-blob detector → junction/lumen/dead_end + polar targets
-    place_recognition.py  DINOv2 ViT-S/14 + VLAD (HSV histogram fallback), roll-invariant
-    proximity.py       3×3 brightness grid + Farneback optical-flow safety reflex
+  anatomy.py     AnatomyParams + generate_anatomy (seeded Sampaio A1)
+  stones.py      Stone, StoneParams, generate_stones (seeded epidemiology)
+  skeleton.py    Per-segment 1mm centerline waypoints with tangents
+  mesh_gen.py    KD-tree-pruned swept-sphere SDF, marching cubes
+  sdf.py         VoxelSDF: trilinear interpolation collision queries
+  collision.py   ClearanceField wrapping VoxelSDF
+  texture.py     Vertex displacement, base + stone coloring
+  dynamics.py    ScopeLimits, ScopeDynamics, CommandFeedback
+  renderer.py    moderngl renderer, SSAA, two-pass coaxial + endoscope post
+  simulator.py   KidneySimulator: command, render, attempt_capture, follow_skeleton
+  shader/
+    coaxial.{vert,frag}     EndoPBR-style coaxial BRDF
+    postprocess.{vert,frag} Letterbox + chroma + h264 noise resolve
 scripts/
-  validate_grid.py
-  validate_kinematics.py
-  validate_junction_detector.py
-  validate_brightness_falloff.py
-  validate_flythrough.py
-  visualize_skeleton.py
-  validate_perception.py
-docs/images/         README assets
+  demo_procedural_sim.py    4-kidney preview
+  bench_sim.py              Perf + clearance accuracy regression
+  visualize_skeleton.py     3D skeleton + stones overlay
+  validate_grid.py          3x3 anatomical viewpoint grid
+  validate_kinematics.py    Roll/deflection invariants
+  validate_flythrough.py    MP4 DFS fly-through
+docs/images/                Committed reference images
 ```
 
 ## Dev
@@ -149,6 +138,7 @@ docs/images/         README assets
 ```bash
 uv run ruff check endonav_sim scripts
 uv run ruff format endonav_sim scripts
+uv run python scripts/bench_sim.py --seed 2 --frames 200 --accuracy
 ```
 
 ## License
@@ -157,7 +147,22 @@ MIT — see [LICENSE](LICENSE).
 
 ## References
 
-- **EndoPBR**: Material and Lighting Estimation for Photorealistic Surgical Simulations via Physically-based Rendering. arXiv:2502.20669 (2025). https://arxiv.org/abs/2502.20669
-- **Sampaio classification** of pelvicalyceal patterns: Sampaio FJB, *Anatomical background for nephron-sparing surgery in renal cell carcinoma.* J Urol 1992; see [PMC10953598](https://pmc.ncbi.nlm.nih.gov/articles/PMC10953598/) for an endourology-focused narrative review.
-- **NVIDIA GPU Gems Ch 16**, Real-Time Approximations to Subsurface Scattering. https://developer.nvidia.com/gpugems/gpugems/part-iii-materials/chapter-16-real-time-approximations-subsurface-scattering
-- **Dey et al.**, *Photo-Realistic Tissue Reflectance Modelling for Minimally Invasive Surgical Simulation*, MICCAI 2005.
+- **Anatomy**:
+  [StatPearls — Anatomy of the Ureter](https://www.ncbi.nlm.nih.gov/books/NBK532980/);
+  [Yamashita 2021 — Physiological narrowings in the upper urinary tract](https://pmc.ncbi.nlm.nih.gov/articles/PMC8096766/);
+  [Soni 2018 — Pelvicalyceal morphology](https://pmc.ncbi.nlm.nih.gov/articles/PMC6595142/);
+  [Kidney collecting system anatomy applied to endourology — narrative review 2024](https://pmc.ncbi.nlm.nih.gov/articles/PMC10953598/);
+  [Elbahnasy — Lower caliceal stone clearance and infundibulopelvic anatomy](https://pubmed.ncbi.nlm.nih.gov/9474124/).
+- **Stones**:
+  [Kidney stone disease — Wikipedia](https://en.wikipedia.org/wiki/Kidney_stone_disease);
+  [StatPearls — Renal Calculi](https://www.ncbi.nlm.nih.gov/books/NBK442014/);
+  [Treatment of renal lower pole stones — review](https://pmc.ncbi.nlm.nih.gov/articles/PMC8691227/).
+- **Ureteroscopes**:
+  [Boston Scientific LithoVue specifications](https://www.bostonscientific.com/en-US/products/Ureteroscopes/LithoVue/specifications.html);
+  [Single-use flexible ureteroscopes — pictorial review 2023](https://pmc.ncbi.nlm.nih.gov/articles/PMC10743947/);
+  [Pietrow 2004 — Physical properties of flexible ureteroscopes (buckling pressures)](https://pubmed.ncbi.nlm.nih.gov/15253821/).
+- **Robot dynamics**:
+  [Robotic flexible ureteroscopy — current status review](https://pmc.ncbi.nlm.nih.gov/articles/PMC9448675/);
+  [Wang 2015 — Tendon-sheath nonlinear friction modelling](https://www.sciencedirect.com/science/article/abs/pii/S0888327015000035);
+  [Zhang 2017 — Mixed control scheme for flexible endoscopes](https://journals.sagepub.com/doi/10.1177/1729881417702506).
+- **Rendering**: [EndoPBR](https://arxiv.org/abs/2502.20669) (arXiv 2502.20669, 2025); [NVIDIA GPU Gems Ch 16 — Subsurface Scattering](https://developer.nvidia.com/gpugems/gpugems/part-iii-materials/chapter-16-real-time-approximations-subsurface-scattering); Dey et al., MICCAI 2005.

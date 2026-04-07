@@ -20,20 +20,23 @@ env/
 # uv
 # uv.lock IS tracked
 
-# Generated validation artifacts at repo root (regenerate via scripts/)
+# Legacy scratch outputs at repo root (scripts now write to artifacts/)
 /grid.png
-/junction_detection.png
-/brightness_falloff.png
 /skeleton_overlay.png
 /flythrough.mp4
 /validation_kinematics.png
-/validate_perception_*.png
 
 # One-off / scratch render outputs
 test_*.png
 debug_*.png
 phantom_*.png
 *.tmp.png
+
+# Artifacts directory (bench output, regenerated previews) — committed images
+# live in docs/images/, NOT here.
+/artifacts/
+/bench_*.txt
+/bench_*.json
 
 # OS / editors
 .DS_Store

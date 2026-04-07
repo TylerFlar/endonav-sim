@@ -1,6 +1,21 @@
 """endonav_sim: procedural endoscopic kidney collecting system simulator."""
 
-from .sim import KidneySimulator
+from .anatomy import AnatomyMeta, AnatomyParams, generate_anatomy
+from .dynamics import CommandFeedback, ScopeLimits
+from .simulator import CaptureResult, KidneySimulator, ToolMode
+from .stones import Stone, StoneParams, generate_stones
 
-__version__ = "0.3.0"
-__all__ = ["KidneySimulator"]
+__version__ = "0.5.0"
+__all__ = [
+    "KidneySimulator",
+    "AnatomyParams",
+    "AnatomyMeta",
+    "generate_anatomy",
+    "StoneParams",
+    "Stone",
+    "generate_stones",
+    "ScopeLimits",
+    "CommandFeedback",
+    "ToolMode",
+    "CaptureResult",
+]
