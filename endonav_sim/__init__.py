@@ -5,7 +5,7 @@ from .dynamics import CommandFeedback, ScopeLimits
 from .simulator import CaptureResult, KidneySimulator, ToolMode
 from .stones import Stone, StoneParams, generate_stones
 
-__version__ = "0.5.0"
+__version__ = "0.6.0"
 __all__ = [
     "KidneySimulator",
     "AnatomyParams",

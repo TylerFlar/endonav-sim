@@ -1,7 +1,7 @@
 """Render a 3D matplotlib visualization of the procedural skeleton.
 
 Usage:
-    python scripts/visualize_skeleton.py [--seed N] [--no-stones]
+    python scripts/visualize_skeleton.py [--seed N] [--variant A1|A2|B1|B2] [--no-stones]
 """
 
 from __future__ import annotations
@@ -33,26 +33,36 @@ def _color_for(name: str) -> str:
         return "#66c8ff"
     if name.startswith("major_lower"):
         return "#ff78c8"
+    if name.startswith("major_middle"):
+        return "#7ac060"
     if name.startswith("minf_upper") or name.startswith("calyx_upper"):
         return "#3ca0dc"
     if name.startswith("minf_lower") or name.startswith("calyx_lower"):
         return "#dc6c8c"
+    if name.startswith("minf_middle") or name.startswith("calyx_middle"):
+        return "#5aa040"
     return "#aaaaaa"
 
 
 def main() -> None:
     p = argparse.ArgumentParser()
     p.add_argument("--seed", type=int, default=0, help="Procedural anatomy seed")
+    p.add_argument(
+        "--variant",
+        choices=["A1", "A2", "B1", "B2"],
+        default="A1",
+        help="Sampaio pelvicalyceal variant",
+    )
     p.add_argument("--no-stones", action="store_true", help="Skip stone overlay")
     p.add_argument("--out", type=Path, default=Path("artifacts/skeleton_overlay.png"))
     args = p.parse_args()
 
-    tree, meta = generate_anatomy(AnatomyParams(seed=args.seed))
+    tree, meta = generate_anatomy(AnatomyParams(seed=args.seed, variant=args.variant))
     skel = build_skeleton(tree)
     stones = [] if args.no_stones else generate_stones(skel, meta, StoneParams(seed=args.seed))
 
     title = (
-        f"procedural anatomy seed={args.seed}  "
+        f"procedural anatomy {args.variant} seed={args.seed}  "
         f"({meta.n_dead_ends} calyces, IPA={meta.infundibulopelvic_angle_deg:.0f} deg)"
     )
 
