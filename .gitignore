@@ -49,3 +49,6 @@ SOFA_*.zip
 
 # Logs
 *.log
+
+# Shared by all the ARCLab repos
+.claude/

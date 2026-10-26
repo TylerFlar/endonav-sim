@@ -1,5 +1,9 @@
 # endonav-sim
 
+> **Status:** paused, last worked on in April 2026. Archived on GitHub; unarchive it to pick it up again.
+>
+> Part of my endoscopic-navigation experiments at UC San Diego's ARCLab: [all the repos](https://github.com/search?q=user%3ATylerFlar+topic%3Aucsd-arclab&type=repositories).
+
 A procedural seeded simulator of robotic ureteroscopy. Every kidney is a unique, anatomically-grounded pelvicalyceal tree, populated with realistic kidney stones, viewed through a flexible ureteroscope with honest robotic dynamics — encoder noise, tendon-sheath hysteresis, buckling, dead-reckoning drift. Built for closed-loop autonomy research where you need to evaluate a controller against many anatomies, not one canonical phantom. Runs at 60+ fps.
 
 ![procedural kidneys preview](docs/images/procedural_kidneys.png)
