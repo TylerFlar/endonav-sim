@@ -44,5 +44,8 @@ Thumbs.db
 .vscode/
 .idea/
 
+# SOFA Framework binary (installed separately — see SOFA_SETUP.md)
+SOFA_*.zip
+
 # Logs
 *.log

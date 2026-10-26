@@ -36,11 +36,6 @@ def main() -> None:
     p.add_argument("--with-depth", action="store_true")
     p.add_argument("--with-stones-visible", action="store_true")
     p.add_argument("--no-stones", action="store_true")
-    p.add_argument(
-        "--accuracy",
-        action="store_true",
-        help="Compare ClearanceField against a trimesh ground truth on 1000 points",
-    )
     args = p.parse_args()
 
     print(f"=== bench_sim seed={args.seed} frames={args.frames} ===")
@@ -68,12 +63,12 @@ def main() -> None:
 
     # Warmup so JIT/cache effects don't pollute the first frames
     for _ in range(10):
-        sim.command(advance_mm=0.5, roll_deg=2.0, deflection_deg=5.0)
+        sim.command(advance_mm=0.5, roll_deg=2.0, kappa2_target=0.02)
         sim.render(with_depth=args.with_depth, with_stones_visible=args.with_stones_visible)
 
     for _ in range(args.frames):
         t = time.perf_counter()
-        sim.command(advance_mm=0.5, roll_deg=2.0, deflection_deg=5.0)
+        sim.command(advance_mm=0.5, roll_deg=2.0, kappa2_target=0.02)
         c = time.perf_counter()
         sim.render(with_depth=args.with_depth, with_stones_visible=args.with_stones_visible)
         r = time.perf_counter()
@@ -95,28 +90,6 @@ def main() -> None:
     print(f"  fps:           {fps:6.1f}")
     print(f"  60fps target:  {'PASS' if fps >= 60.0 else 'FAIL'}")
 
-    # ---- Clearance accuracy --------------------------------------------
-    if args.accuracy:
-        try:
-            from trimesh.proximity import ProximityQuery
-        except Exception as e:
-            print(f"accuracy check skipped: {e}")
-            return
-        rng = np.random.default_rng(args.seed)
-        bounds = sim.mesh.bounds
-        n = 1000
-        pts = rng.uniform(bounds[0], bounds[1], size=(n, 3))
-        # Old: trimesh BVH + contains
-        pq = ProximityQuery(sim.mesh)
-        _, unsigned, _ = pq.on_surface(pts)
-        inside = sim.mesh.contains(pts)
-        old_clear = np.where(inside, unsigned, -unsigned)
-        # New: ClearanceField (whatever it is now)
-        new_clear = np.array([sim.clearance.nearest_wall_distance(pts[i]) for i in range(n)])
-        diff = np.abs(old_clear - new_clear)
-        print(f"\naccuracy vs trimesh ground truth (n={n}):")
-        print(f"  mean abs diff: {diff.mean():.3f} mm")
-        print(f"  max abs diff:  {diff.max():.3f} mm")
 
 
 if __name__ == "__main__":

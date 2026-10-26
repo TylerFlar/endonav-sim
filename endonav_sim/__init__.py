@@ -1,11 +1,12 @@
-"""endonav_sim: procedural endoscopic kidney collecting system simulator."""
+"""endonav_sim: procedural endoscopic kidney simulator with SOFA physics."""
 
 from .anatomy import AnatomyMeta, AnatomyParams, generate_anatomy
 from .dynamics import CommandFeedback, ScopeLimits
-from .simulator import CaptureResult, KidneySimulator, ToolMode
+from .simulator import CaptureResult, CommandResult, KidneySimulator, ToolMode
 from .stones import Stone, StoneParams, generate_stones
+from .visuals import ToolVisualState, compose_visuals
 
-__version__ = "0.6.0"
+__version__ = "0.8.1"
 __all__ = [
     "KidneySimulator",
     "AnatomyParams",
@@ -16,6 +17,9 @@ __all__ = [
     "generate_stones",
     "ScopeLimits",
     "CommandFeedback",
+    "CommandResult",
     "ToolMode",
     "CaptureResult",
+    "ToolVisualState",
+    "compose_visuals",
 ]

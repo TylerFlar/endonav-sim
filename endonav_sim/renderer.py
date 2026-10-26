@@ -146,6 +146,27 @@ class CoaxialRenderer:
             index_buffer=self.ibo,
         )
 
+    def update_vertices(
+        self,
+        positions: np.ndarray,
+        normals: np.ndarray,
+    ) -> None:
+        """Write new vertex positions and normals into the existing VBO.
+
+        The VBO is interleaved as ``[pos3, normal3, color3]`` per vertex
+        (9 floats = 36 bytes each). This reads the full buffer, patches
+        positions and normals in-place with numpy, and writes back. Colors
+        and the VAO/IBO are not touched.
+        """
+        positions = np.ascontiguousarray(positions, dtype=np.float32)
+        normals = np.ascontiguousarray(normals, dtype=np.float32)
+        n_verts = len(positions)
+        # Read current interleaved buffer as (N, 9) float32
+        raw = np.frombuffer(self.vbo.read(), dtype=np.float32).reshape(n_verts, 9).copy()
+        raw[:, 0:3] = positions
+        raw[:, 3:6] = normals
+        self.vbo.write(raw.tobytes())
+
     def render(
         self, pose: np.ndarray, with_depth: bool = False
     ) -> tuple[np.ndarray, np.ndarray | None]:

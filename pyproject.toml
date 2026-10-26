@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "endonav-sim"
-version = "0.6.0"
-description = "Procedural seeded simulator of robotic ureteroscopy: kidney anatomy, kidney stones, realistic scope dynamics, and a 60+ fps RGB+depth interface."
+version = "0.8.0"
+description = "Procedural ureteroscopy simulator with SOFA-based physics, kidney anatomy, kidney stones, realistic scope dynamics, and a realtime interactive interface."
 readme = "README.md"
 requires-python = ">=3.10,<3.13"
 authors = [{ name = "TylerFlar" }]
@@ -19,6 +19,10 @@ dependencies = [
     "imageio[ffmpeg]>=2.31",
     "moderngl>=5.10",
     "opencv-python>=4.8",
+    "gymnasium>=0.29",
+    "pygame>=2.5",
+    "fast-simplification>=0.1",
+    "tetgen>=0.6",
 ]
 
 [project.optional-dependencies]

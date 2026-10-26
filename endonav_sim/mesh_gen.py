@@ -35,9 +35,6 @@ class MeshBuildResult:
     grid_shape: tuple[int, int, int]
     papillae: list[Papilla]
     stones: list[Stone]
-    sdf_grid: np.ndarray  # Final combined SDF (lumen ∩ ¬papillae ∩ ¬stones)
-    sdf_origin: np.ndarray  # World-space coords of voxel (0,0,0)
-    sdf_step: float  # Voxel spacing in mm
 
 
 def _bbox(samples: list[Sample]) -> tuple[np.ndarray, np.ndarray]:
@@ -250,9 +247,6 @@ def build_mesh(
         grid_shape=shape,
         papillae=papillae,
         stones=list(stones),
-        sdf_grid=sdf,
-        sdf_origin=lo,
-        sdf_step=float(grid_step),
     )
 
 
