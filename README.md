@@ -3,6 +3,8 @@
 > **Status:** paused, last worked on in April 2026. Archived on GitHub; unarchive it to pick it up again.
 >
 > Part of my endoscopic-navigation experiments at UC San Diego's ARCLab: [all the repos](https://github.com/search?q=user%3ATylerFlar+topic%3Aucsd-arclab&type=repositories).
+>
+> The rest of this README describes version 0.6.0 (`afb53c0`, April 2026). The last commit is a snapshot of later, unfinished work that moves the scope onto SOFA, so the quickstart, the file layout and the benchmark numbers below no longer match the code. Check out `afb53c0` for the version they describe.
 
 A procedural seeded simulator of robotic ureteroscopy. Every kidney is a unique, anatomically-grounded pelvicalyceal tree, populated with realistic kidney stones, viewed through a flexible ureteroscope with honest robotic dynamics — encoder noise, tendon-sheath hysteresis, buckling, dead-reckoning drift. Built for closed-loop autonomy research where you need to evaluate a controller against many anatomies, not one canonical phantom. Runs at 60+ fps.
 
